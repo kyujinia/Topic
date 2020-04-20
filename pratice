@@ -1,0 +1,112 @@
+import requests
+from bs4 import BeautifulSoup
+import re
+import pandas as pd
+import numpy as n
+from konlpy.tag import Kkma
+from konlpy.tag import Twitter
+from konlpy.utils import pprint
+from collections import Counter
+
+
+twitter = Twitter()
+kkma = Kkma()
+
+import glob
+import os
+import sys
+import csv
+
+input_path = r"C:/Users/ckjst/Desktop/math_11to19_csv/AA"
+
+output_path = r"C:/Users/ckjst/Desktop/math_11to19_csv/result/allA.csv"
+
+
+first_file = True
+for input_file in glob.glob(os.path.join(input_path, '*')): 
+    print(os.path.basename(input_file)) # 불러온 파일명을 print해서 확인할 수 있게 한다
+    with open(input_file, 'r', newline='') as csv_in_file: 
+        with open(output_path, 'a', newline='') as csv_out_file:
+            filereader = csv.reader(csv_in_file)
+            filewriter = csv.writer(csv_out_file)
+            if first_file:
+                for row in filereader:
+                    filewriter.writerow(row)
+                first_file = False 
+                header = next(filereader) 
+                for row in filereader:
+                    filewriter.writerow(row) 
+                    
+ f = open("C:/Users/ckjst/Desktop/math_11to19_csv/result/allA.txt")
+    
+lines = f.readlines()
+mathA =[]
+for line in lines:
+    line = re.sub("\n", "", line)
+    mathA.append(line)
+f.close
+
+mathA_noun = []
+
+for i in range(1222):
+    mathA_n = kkma.nouns(mathA[i])
+    mathA_noun.append(mathA_n)
+    
+w = open("C:/Users/ckjst/Desktop/math_11to19_csv/stop_words.txt")
+    
+lines = w.readlines()
+stop =[]
+for line in lines:
+    line = re.sub("\n", "", line)
+    stop.append(line)
+w.close
+
+for i in range(1222):
+    mathA_noun[i] = list(set(mathA_noun[i]) - set(stop))
+
+mathA_noun
+
+from gensim import corpora
+
+dictionary = corpora.Dictionary(mathA_noun)
+corpus = [dictionary.doc2bow(text) for text in mathA_noun]
+
+import gensim
+
+NUM_TOPICS = 20
+ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics = NUM_TOPICS, id2word=dictionary, passes=30)
+topics = ldamodel.print_topics(num_words=6)
+for topic in topics:
+    print(topic)
+    
+import pyLDAvis.gensim
+pyLDAvis.enable_notebook()
+vis = pyLDAvis.gensim.prepare(ldamodel, corpus, dictionary)
+pyLDAvis.display(vis)
+
+for i, topic_list in enumerate(ldamodel[corpus]):
+    if i==5:
+        break
+        
+def make_topictable_per_doc(ldamodel, corpus, texts):
+    topic_table = pd.DataFrame()
+
+    # 몇 번째 문서인지를 의미하는 문서 번호와 해당 문서의 토픽 비중을 한 줄씩 꺼내온다.
+    for i, topic_list in enumerate(ldamodel[corpus]):
+        doc = topic_list[0] if ldamodel.per_word_topics else topic_list            
+        doc = sorted(doc, key=lambda x: (x[1]), reverse=True)
+
+        # 모든 문서에 대해서 각각 아래를 수행
+        for j, (topic_num, prop_topic) in enumerate(doc): #  몇 번 토픽인지와 비중을 나눠서 저장한다.
+            if j == 0:  # 정렬을 한 상태이므로 가장 앞에 있는 것이 가장 비중이 높은 토픽
+                topic_table = topic_table.append(pd.Series([int(topic_num), round(prop_topic,4), topic_list]), ignore_index=True)
+                # 가장 비중이 높은 토픽과, 가장 비중이 높은 토픽의 비중과, 전체 토픽의 비중을 저장한다.
+            else:
+                break
+    return(topic_table)
+    
+    
+   topictable = make_topictable_per_doc(ldamodel, corpus, mathA_noun)
+topictable = topictable.reset_index() # 문서 번호을 의미하는 열(column)로 사용하기 위해서 인덱스 열을 하나 더 만든다.
+topictable.columns = ['문서 번호', '가장 비중이 높은 토픽', '가장 높은 토픽의 비중', '각 토픽의 비중']
+topictable 
